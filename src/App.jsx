@@ -31,6 +31,7 @@ const calculateYearProgress = () => {
 
 function YearProgress() {
   const [progress, setProgress] = useState(calculateYearProgress());
+  const [hoveredIndex, setHoveredIndex] = useState(null);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -44,21 +45,31 @@ function YearProgress() {
 
   // --- Visuals ---
 
+  // Calculate daysPassed and daysLeft
+  const daysPassed = progress.dayOfYear;
+  const daysLeft = progress.totalDaysInYear - daysPassed;
+
   // Create the block representation of the year (e.g., 100 blocks)
   const totalBlocks = 100;
   const filledBlocks = Math.floor(progress.percentage);
   const emptyBlocks = totalBlocks - filledBlocks;
   const progressBlocks = '▓'.repeat(filledBlocks) + '░'.repeat(emptyBlocks);
 
+  // Create matrixWeeks: one element per week in the year, 'filled' if week index < weeksPassed, else 'empty'
+  const totalWeeks = Math.ceil(progress.totalDaysInYear / 7);
+  const weeksPassed = Math.ceil(daysPassed / 7);
+  const matrixWeeks = Array.from({ length: totalWeeks }, (_, i) =>
+    i < weeksPassed ? 'filled' : 'empty'
+  );
 
   // --- Styles ---
 
   const styles = {
     container: {
-      backgroundColor: '#111',
+      backgroundColor: '#fff',
       backgroundSize: 'cover',
       backgroundRepeat: 'repeat',
-      color: '#fff',
+      color: '#000',
       display: 'flex',
       flexDirection: 'column',
       alignItems: 'center',
@@ -68,46 +79,45 @@ function YearProgress() {
       margin: 0,
       padding: 0,
       boxSizing: 'border-box',
-      fontFamily: `'Helvetica Neue', Arial, sans-serif`,
-      fontWeight: '300',
+      fontFamily: 'monospace',
+      fontWeight: '100',
       textAlign: 'center',
     },
     year: {
-      fontSize: '3rem',
-      fontWeight: '300',
-      color: '#fff',
+      fontSize: '2rem',
+      fontWeight: '100',
+      color: '#000',
       letterSpacing: '0',
-      margin: '0',
+      margin: 0,
+      marginBottom: '1rem',
     },
     loadingTextContainer: {
       display: 'flex',
       justifyContent: 'space-between',
       width: '80%',
       maxWidth: '600px',
-      fontSize: '2.5rem',
+      fontSize: '1rem',
       fontFamily: `monospace`,
       margin: '0.5rem 0 1.5rem 0',
       letterSpacing: '0',
-      color: '#fff',
+      color: '#000',
       textTransform: 'uppercase',
     },
     progressBarContainer: {
       width: '90%',
       maxWidth: '600px',
-      height: '30px',
-      backgroundColor: 'transparent',
-      border: '1px solid #fff',
-      borderRadius: '15px',
+      height: '20px',
+      backgroundColor: '#eee',
+      border: '2px solid #000',
+      padding: '2px',
       margin: '1rem 0',
+      boxShadow: '0 0 10px #000',
     },
     progressBarFill: {
       height: '100%',
-      backgroundImage: 'repeating-linear-gradient(90deg, rgba(255,255,255,0.8), rgba(255,255,255,0.8) 5px, transparent 5px, transparent 10px)',
-      backgroundColor: 'transparent',
+      backgroundColor: '#000',
       width: `${progress.percentage}%`,
       transition: 'width 0.5s linear',
-      borderRadius: '15px',
-      boxShadow: '0 0 8px rgba(255,255,255,0.5)',
     },
     blocks: {
       fontSize: '0.75rem',
@@ -117,21 +127,45 @@ function YearProgress() {
       maxWidth: '600px',
       lineHeight: '1.2',
       color: '#eeeeee1e',
-    }
+    },
+    dayMatrix: {
+      display: 'grid',
+      gridTemplateColumns: 'repeat(4, 26px)',
+      gap: '11px',
+      marginTop: '20px',
+    },
+    dayDot: {
+      width: '22px',
+      height: '22px',
+      borderRadius: '50%',
+      transition: 'box-shadow 0.3s ease',
+    },
   };
 
 
   return (
     <div style={styles.container}>
       <h1 style={styles.year}>{progress.year}</h1>
-      
       <div style={styles.loadingTextContainer}>
-        <span>LOADING</span>
+        <span>YEARLY PROGRESS</span>
         <span>{progress.percentage.toFixed(2)}%</span>
       </div>
-      
       <div style={styles.progressBarContainer}>
         <div style={styles.progressBarFill}></div>
+      </div>
+      <div style={styles.dayMatrix}>
+        {matrixWeeks.map((status, idx) => (
+          <div
+            key={idx}
+            style={{
+              ...styles.dayDot,
+              backgroundColor: status === 'filled' ? '#000' : '#ccc',
+              boxShadow: hoveredIndex === idx ? '0 0 5px #000' : 'none',
+            }}
+            onMouseEnter={() => setHoveredIndex(idx)}
+            onMouseLeave={() => setHoveredIndex(null)}
+          ></div>
+        ))}
       </div>
     </div>
   );
