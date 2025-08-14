@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import LinearProgress from '@mui/material/LinearProgress';
 import { useTheme } from '@mui/material/styles';
+import bgImage from './1734191248015340.jpg';
 
 // --- Helper Functions for Calculation ---
 
@@ -78,13 +79,15 @@ function YearProgress() {
       margin: 0,
       padding: 0,
       boxSizing: 'border-box',
-      fontFamily: 'monospace',
+      fontFamily: "'Fira Code', 'Source Code Pro', 'Courier New', monospace",
       fontWeight: '100',
       textAlign: 'center',
     },
     loadingTextContainer: {
       display: 'flex',
-      justifyContent: 'space-between',
+      justifyContent: 'center',
+      alignItems: 'center',
+      gap: '1rem',
       width: '80%',
       maxWidth: '600px',
       fontSize: '1rem',
@@ -93,6 +96,14 @@ function YearProgress() {
       letterSpacing: '0',
       color: '#ffffffff',
       textTransform: 'uppercase',
+    },
+    percentageText: {
+      fontSize: '1.5rem',
+      fontWeight: 'bold',
+      color: '#fff',
+      backgroundColor: 'rgba(0, 0, 0, 0.4)',
+      padding: '0.3rem 0.6rem',
+      borderRadius: '8px',
     },
     blocks: {
       fontSize: '0.75rem',
@@ -112,7 +123,7 @@ function YearProgress() {
     dayDot: {
       width: '12px',
       height: '12px',
-      borderRadius: '6px',
+      borderRadius: '4px',
       transition: 'box-shadow 0.2s ease, transform 0.2s ease',
     },
     dateTime: {
@@ -127,11 +138,43 @@ function YearProgress() {
       backgroundColor: 'rgba(255, 255, 255, 0.2)',
       backdropFilter: 'blur(10px)',
       borderRadius: '15px',
-      padding: '20px',
+      padding: '18px',
       display: 'flex',
       flexDirection: 'column',
       alignItems: 'center',
       gap: '1rem',
+      minWidth: '340px',
+      position: 'relative',
+    },
+    bubble: {
+      backgroundColor: 'rgba(0, 0, 0, 0.6)',
+      color: '#fff',
+      padding: '0.4rem 0.8rem',
+      borderRadius: '12px',
+      fontSize: '0.9rem',
+      fontWeight: 'bold',
+    },
+    leftBubble: {
+      position: 'static',
+      margin: '0 0.5rem',
+      backgroundColor: 'rgba(0, 0, 0, 0.6)',
+      color: '#fff',
+      padding: '0.4rem 0.8rem',
+      borderRadius: '12px',
+      fontSize: '1rem',
+      fontWeight: 'bold',
+      whiteSpace: 'nowrap',
+    },
+    rightBubble: {
+      position: 'static',
+      margin: '0 0.5rem',
+      backgroundColor: 'rgba(0, 0, 0, 0.6)',
+      color: '#fff',
+      padding: '0.4rem 0.8rem',
+      borderRadius: '12px',
+      fontSize: '1rem',
+      fontWeight: 'bold',
+      whiteSpace: 'nowrap',
     },
   };
 
@@ -145,7 +188,7 @@ function YearProgress() {
           left: 0,
           width: '100%',
           height: '100%',
-          backgroundImage: "url('/src/1734191248015340.jpg')",
+          backgroundImage: `url(${bgImage})`,
           backgroundSize: 'cover',
           backgroundRepeat: 'no-repeat',
           backgroundPosition: 'center',
@@ -155,8 +198,9 @@ function YearProgress() {
         }}
       />
       <div style={styles.card}>
-        <div style={styles.loadingTextContainer}>
-          <span>{progress.year} is {progress.percentage.toFixed(2)}% completed.</span>
+        <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%' }}>
+          <span style={styles.leftBubble}>{progress.year}</span>
+          <span style={styles.rightBubble}>{progress.percentage.toFixed(4)}%</span>
         </div>
         <LinearProgress
           variant="determinate"
@@ -183,8 +227,8 @@ function YearProgress() {
               style={{
                 ...styles.dayDot,
                 backgroundColor: status === 'filled'
-                  ? theme.palette.primary.main
-                  : theme.palette.grey[300],
+                  ? 'rgba(255,255,255,0.85)'
+                  : 'rgba(255,255,255,0.3)',
                 boxShadow: hoveredIndex === idx
                   ? `0 0 6px ${theme.palette.primary.light}`
                   : 'none',
@@ -194,6 +238,10 @@ function YearProgress() {
               onMouseLeave={() => setHoveredIndex(null)}
             ></div>
           ))}
+        </div>
+        <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem' }}>
+          <span style={styles.bubble}>{daysPassed} days passed</span>
+          <span style={styles.bubble}>{daysLeft} days remaining</span>
         </div>
       </div>
       <div style={styles.dateTime}>
