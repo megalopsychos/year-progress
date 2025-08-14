@@ -1,7 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import Draggable from 'react-draggable';
 import LinearProgress from '@mui/material/LinearProgress';
 import { useTheme } from '@mui/material/styles';
-import bgImage from './1734191248015340.jpg';
+
+const images = import.meta.glob('./images/**/*.{jpg,jpeg,png,gif,JPG,JPEG,PNG,GIF,webp,WEBP}', { eager: true });
+const bgImages = Object.values(images).map(img => img.default);
 
 // --- Helper Functions for Calculation ---
 
@@ -29,13 +32,14 @@ const calculateYearProgress = () => {
   };
 };
 
-
 // --- The Main Component ---
 
 function YearProgress() {
   const theme = useTheme();
+  const [randomBgImage] = useState(() => bgImages[Math.floor(Math.random() * bgImages.length)]);
   const [progress, setProgress] = useState(calculateYearProgress());
   const [hoveredIndex, setHoveredIndex] = useState(null);
+  const cardRef = useRef(null);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -135,8 +139,11 @@ function YearProgress() {
       fontFamily: 'monospace',
     },
     card: {
-      backgroundColor: 'rgba(255, 255, 255, 0.2)',
+      backgroundColor: 'rgba(0, 0, 0, 0.6)',
+      border: '1px solid rgba(255, 255, 255, 0.2)',
+      boxShadow: '0 4px 20px rgba(0, 0, 0, 0.6)',
       backdropFilter: 'blur(10px)',
+      WebkitBackdropFilter: 'blur(10px)',
       borderRadius: '15px',
       padding: '18px',
       display: 'flex',
@@ -188,65 +195,76 @@ function YearProgress() {
           left: 0,
           width: '100%',
           height: '100%',
-          backgroundImage: `url(${bgImage})`,
+          backgroundImage: `url(${randomBgImage})`,
           backgroundSize: 'cover',
           backgroundRepeat: 'no-repeat',
           backgroundPosition: 'center',
-          filter: 'blur(8px)',
-          opacity: 0.9,
-          zIndex: -1
+          zIndex: -1,
+          pointerEvents: 'none',
         }}
       />
-      <div style={styles.card}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%' }}>
-          <span style={styles.leftBubble}>{progress.year}</span>
-          <span style={styles.rightBubble}>{progress.percentage.toFixed(4)}%</span>
+      <Draggable bounds="parent" nodeRef={cardRef} handle=".card-handle">
+        <div ref={cardRef} style={styles.card}>
+          <div className="card-handle" style={{ display: 'flex', justifyContent: 'space-between', width: '100%', cursor: 'move' }}>
+            <span style={styles.leftBubble}>{progress.year}</span>
+            <span style={styles.rightBubble}>{progress.percentage.toFixed(4)}%</span>
+          </div>
+          <LinearProgress
+            variant="determinate"
+            value={progress.percentage}
+            sx={{
+              width: '95%',
+              maxWidth: '600px',
+              height: '30px',
+              borderRadius: '15px',
+              backgroundColor: '#00000033',
+              '& .MuiLinearProgress-bar': {
+                backgroundColor: '#fff',
+              },
+              '&:hover': {
+                boxShadow: '0 0 10px #fff',
+                transition: 'box-shadow 0.3s ease',
+              },
+            }}
+          />
+          <div style={styles.dayMatrix}>
+            {matrixDays.map((status, idx) => (
+              <div
+                key={idx}
+                style={{
+                  ...styles.dayDot,
+                  backgroundColor: status === 'filled'
+                    ? 'rgba(255,255,255,0.85)'
+                    : 'rgba(255,255,255,0.3)',
+                  boxShadow: hoveredIndex === idx
+                    ? `0 0 6px ${theme.palette.primary.light}`
+                    : 'none',
+                  transform: hoveredIndex === idx ? 'scale(1.2)' : 'scale(1)',
+                }}
+                onMouseEnter={() => setHoveredIndex(idx)}
+                onMouseLeave={() => setHoveredIndex(null)}
+              ></div>
+            ))}
+          </div>
+          <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem' }}>
+            <span style={styles.bubble}>{daysPassed} days passed</span>
+            <span style={styles.bubble}>{daysLeft} days remaining</span>
+          </div>
         </div>
-        <LinearProgress
-          variant="determinate"
-          value={progress.percentage}
-          sx={{
-            width: '95%',
-            maxWidth: '600px',
-            height: '30px',
-            borderRadius: '15px',
-            backgroundColor: '#00000033',
-            '& .MuiLinearProgress-bar': {
-              backgroundColor: '#fff',
-            },
-            '&:hover': {
-              boxShadow: '0 0 10px #fff',
-              transition: 'box-shadow 0.3s ease',
-            },
-          }}
-        />
-        <div style={styles.dayMatrix}>
-          {matrixDays.map((status, idx) => (
-            <div
-              key={idx}
-              style={{
-                ...styles.dayDot,
-                backgroundColor: status === 'filled'
-                  ? 'rgba(255,255,255,0.85)'
-                  : 'rgba(255,255,255,0.3)',
-                boxShadow: hoveredIndex === idx
-                  ? `0 0 6px ${theme.palette.primary.light}`
-                  : 'none',
-                transform: hoveredIndex === idx ? 'scale(1.2)' : 'scale(1)',
-              }}
-              onMouseEnter={() => setHoveredIndex(idx)}
-              onMouseLeave={() => setHoveredIndex(null)}
-            ></div>
-          ))}
-        </div>
-        <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem' }}>
-          <span style={styles.bubble}>{daysPassed} days passed</span>
-          <span style={styles.bubble}>{daysLeft} days remaining</span>
-        </div>
-      </div>
+      </Draggable>
       <div style={styles.dateTime}>
         {new Date().toLocaleString()}
       </div>
+      <footer style={{
+        position: 'absolute',
+        bottom: '10px',
+        left: '20px',
+        fontSize: '0.9rem',
+        color: '#fff',
+        fontFamily: 'monospace'
+      }}>
+        Made by <a href="https://github.com/megalopsychos" target="_blank" rel="noopener noreferrer" style={{ color: '#fff', textDecoration: 'underline' }}>Anant</a>
+      </footer>
     </div>
   );
 }
