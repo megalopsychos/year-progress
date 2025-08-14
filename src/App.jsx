@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import LinearProgress from '@mui/material/LinearProgress';
+import { useTheme } from '@mui/material/styles';
 
 // --- Helper Functions for Calculation ---
 
@@ -30,6 +32,7 @@ const calculateYearProgress = () => {
 // --- The Main Component ---
 
 function YearProgress() {
+  const theme = useTheme();
   const [progress, setProgress] = useState(calculateYearProgress());
   const [hoveredIndex, setHoveredIndex] = useState(null);
 
@@ -55,20 +58,16 @@ function YearProgress() {
   const emptyBlocks = totalBlocks - filledBlocks;
   const progressBlocks = '▓'.repeat(filledBlocks) + '░'.repeat(emptyBlocks);
 
-  // Create matrixWeeks: one element per week in the year, 'filled' if week index < weeksPassed, else 'empty'
-  const totalWeeks = Math.ceil(progress.totalDaysInYear / 7);
-  const weeksPassed = Math.ceil(daysPassed / 7);
-  const matrixWeeks = Array.from({ length: totalWeeks }, (_, i) =>
-    i < weeksPassed ? 'filled' : 'empty'
+  // Create matrixDays: one element per day in the year, 'filled' if day index < daysPassed, else 'empty'
+  const matrixDays = Array.from({ length: progress.totalDaysInYear }, (_, i) =>
+    i < daysPassed ? 'filled' : 'empty'
   );
 
   // --- Styles ---
 
   const styles = {
     container: {
-      backgroundColor: '#fff',
-      backgroundSize: 'cover',
-      backgroundRepeat: 'repeat',
+      position: 'relative',
       color: '#000',
       display: 'flex',
       flexDirection: 'column',
@@ -83,14 +82,6 @@ function YearProgress() {
       fontWeight: '100',
       textAlign: 'center',
     },
-    year: {
-      fontSize: '2rem',
-      fontWeight: '100',
-      color: '#000',
-      letterSpacing: '0',
-      margin: 0,
-      marginBottom: '1rem',
-    },
     loadingTextContainer: {
       display: 'flex',
       justifyContent: 'space-between',
@@ -100,24 +91,8 @@ function YearProgress() {
       fontFamily: `monospace`,
       margin: '0.5rem 0 1.5rem 0',
       letterSpacing: '0',
-      color: '#000',
+      color: '#ffffffff',
       textTransform: 'uppercase',
-    },
-    progressBarContainer: {
-      width: '90%',
-      maxWidth: '600px',
-      height: '20px',
-      backgroundColor: '#eee',
-      border: '2px solid #000',
-      padding: '2px',
-      margin: '1rem 0',
-      boxShadow: '0 0 10px #000',
-    },
-    progressBarFill: {
-      height: '100%',
-      backgroundColor: '#000',
-      width: `${progress.percentage}%`,
-      transition: 'width 0.5s linear',
     },
     blocks: {
       fontSize: '0.75rem',
@@ -130,42 +105,99 @@ function YearProgress() {
     },
     dayMatrix: {
       display: 'grid',
-      gridTemplateColumns: 'repeat(4, 26px)',
-      gap: '11px',
+      gridTemplateColumns: 'repeat(14, 14px)',
+      gap: '6px',
       marginTop: '20px',
     },
     dayDot: {
-      width: '22px',
-      height: '22px',
-      borderRadius: '50%',
-      transition: 'box-shadow 0.3s ease',
+      width: '12px',
+      height: '12px',
+      borderRadius: '6px',
+      transition: 'box-shadow 0.2s ease, transform 0.2s ease',
+    },
+    dateTime: {
+      position: 'absolute',
+      bottom: '10px',
+      right: '20px',
+      fontSize: '0.9rem',
+      color: '#fff',
+      fontFamily: 'monospace',
+    },
+    card: {
+      backgroundColor: 'rgba(255, 255, 255, 0.2)',
+      backdropFilter: 'blur(10px)',
+      borderRadius: '15px',
+      padding: '20px',
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'center',
+      gap: '1rem',
     },
   };
 
 
   return (
     <div style={styles.container}>
-      <h1 style={styles.year}>{progress.year}</h1>
-      <div style={styles.loadingTextContainer}>
-        <span>YEARLY PROGRESS</span>
-        <span>{progress.percentage.toFixed(2)}%</span>
+      <div
+        style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          width: '100%',
+          height: '100%',
+          backgroundImage: "url('/src/1734191248015340.jpg')",
+          backgroundSize: 'cover',
+          backgroundRepeat: 'no-repeat',
+          backgroundPosition: 'center',
+          filter: 'blur(8px)',
+          opacity: 0.9,
+          zIndex: -1
+        }}
+      />
+      <div style={styles.card}>
+        <div style={styles.loadingTextContainer}>
+          <span>{progress.year} is {progress.percentage.toFixed(2)}% completed.</span>
+        </div>
+        <LinearProgress
+          variant="determinate"
+          value={progress.percentage}
+          sx={{
+            width: '95%',
+            maxWidth: '600px',
+            height: '30px',
+            borderRadius: '15px',
+            backgroundColor: '#00000033',
+            '& .MuiLinearProgress-bar': {
+              backgroundColor: '#fff',
+            },
+            '&:hover': {
+              boxShadow: '0 0 10px #fff',
+              transition: 'box-shadow 0.3s ease',
+            },
+          }}
+        />
+        <div style={styles.dayMatrix}>
+          {matrixDays.map((status, idx) => (
+            <div
+              key={idx}
+              style={{
+                ...styles.dayDot,
+                backgroundColor: status === 'filled'
+                  ? theme.palette.primary.main
+                  : theme.palette.grey[300],
+                boxShadow: hoveredIndex === idx
+                  ? `0 0 6px ${theme.palette.primary.light}`
+                  : 'none',
+                transform: hoveredIndex === idx ? 'scale(1.2)' : 'scale(1)',
+              }}
+              onMouseEnter={() => setHoveredIndex(idx)}
+              onMouseLeave={() => setHoveredIndex(null)}
+            ></div>
+          ))}
+        </div>
       </div>
-      <div style={styles.progressBarContainer}>
-        <div style={styles.progressBarFill}></div>
-      </div>
-      <div style={styles.dayMatrix}>
-        {matrixWeeks.map((status, idx) => (
-          <div
-            key={idx}
-            style={{
-              ...styles.dayDot,
-              backgroundColor: status === 'filled' ? '#000' : '#ccc',
-              boxShadow: hoveredIndex === idx ? '0 0 5px #000' : 'none',
-            }}
-            onMouseEnter={() => setHoveredIndex(idx)}
-            onMouseLeave={() => setHoveredIndex(null)}
-          ></div>
-        ))}
+      <div style={styles.dateTime}>
+        {new Date().toLocaleString()}
       </div>
     </div>
   );
