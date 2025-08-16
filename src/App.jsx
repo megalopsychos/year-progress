@@ -1,270 +1,464 @@
-import React, { useState, useEffect, useRef } from 'react';
-import Draggable from 'react-draggable';
-import LinearProgress from '@mui/material/LinearProgress';
-import { useTheme } from '@mui/material/styles';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 
-const images = import.meta.glob('./images/**/*.{jpg,jpeg,png,gif,JPG,JPEG,PNG,GIF,webp,WEBP}', { eager: true });
-const bgImages = Object.values(images).map(img => img.default);
-
-// --- Helper Functions for Calculation ---
-
+// Memoized year progress calculation
 const calculateYearProgress = () => {
   const now = new Date();
   const year = now.getFullYear();
-  const startOfYear = new Date(year, 0, 1); // Jan 1st
-  const endOfYear = new Date(year + 1, 0, 1); // Jan 1st of next year
+  const startOfYear = new Date(year, 0, 1);
+  const endOfYear = new Date(year + 1, 0, 1);
 
   const elapsed = now.getTime() - startOfYear.getTime();
   const total = endOfYear.getTime() - startOfYear.getTime();
-
   const percentage = (elapsed / total) * 100;
 
-  // Day calculations
   const dayOfYear = Math.floor(elapsed / (1000 * 60 * 60 * 24)) + 1;
   const isLeap = (year % 4 === 0 && year % 100 !== 0) || year % 400 === 0;
   const totalDaysInYear = isLeap ? 366 : 365;
 
+  return { percentage, year, dayOfYear, totalDaysInYear };
+};
+
+// ✅ Fixed custom hook for persistent localStorage
+const useLocalStorage = (key, initialValue) => {
+  const [value, setValue] = useState(() => {
+    try {
+      if (typeof window !== "undefined" && window.localStorage) {
+        const item = window.localStorage.getItem(key);
+        return item ? JSON.parse(item) : initialValue;
+      }
+    } catch (error) {
+      console.log("LocalStorage not available, fallback to default");
+    }
+    return initialValue;
+  });
+
+  const setStoredValue = useCallback(
+    (newValue) => {
+      try {
+        setValue(newValue);
+        if (typeof window !== "undefined" && window.localStorage) {
+          window.localStorage.setItem(key, JSON.stringify(newValue));
+        }
+      } catch (error) {
+        console.log("LocalStorage not available");
+      }
+    },
+    [key]
+  );
+
+  return [value, setStoredValue];
+};
+
+// Custom draggable hook
+const useDraggable = () => {
+  const [position, setPosition] = useState({ x: 0, y: 0 });
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+
+  const handleMouseDown = useCallback(
+    (e) => {
+      setIsDragging(true);
+      setDragStart({
+        x: e.clientX - position.x,
+        y: e.clientY - position.y,
+      });
+    },
+    [position]
+  );
+
+  const handleMouseMove = useCallback(
+    (e) => {
+      if (!isDragging) return;
+
+      setPosition({
+        x: e.clientX - dragStart.x,
+        y: e.clientY - dragStart.y,
+      });
+    },
+    [isDragging, dragStart]
+  );
+
+  const handleMouseUp = useCallback(() => {
+    setIsDragging(false);
+  }, []);
+
+  useEffect(() => {
+    if (isDragging) {
+      document.addEventListener("mousemove", handleMouseMove);
+      document.addEventListener("mouseup", handleMouseUp);
+
+      return () => {
+        document.removeEventListener("mousemove", handleMouseMove);
+        document.removeEventListener("mouseup", handleMouseUp);
+      };
+    }
+  }, [isDragging, handleMouseMove, handleMouseUp]);
+
   return {
-    percentage,
-    year,
-    dayOfYear,
-    totalDaysInYear,
+    position,
+    isDragging,
+    handleMouseDown,
   };
 };
 
-// --- The Main Component ---
-
 function YearProgress() {
-  const theme = useTheme();
-  const [randomBgImage] = useState(() => bgImages[Math.floor(Math.random() * bgImages.length)]);
-  const [progress, setProgress] = useState(calculateYearProgress());
-  const [hoveredIndex, setHoveredIndex] = useState(null);
   const cardRef = useRef(null);
+  const updateIntervalRef = useRef(null);
 
+  // State management
+  const [progress, setProgress] = useState(calculateYearProgress());
+  const [todos, setTodos] = useLocalStorage("todos", []);
+  const [newTodo, setNewTodo] = useState("");
+  const [isDarkMode, setIsDarkMode] = useLocalStorage("darkMode", false);
+
+  // Draggable functionality
+  const { position, isDragging, handleMouseDown } = useDraggable();
+
+  // Update progress every minute
   useEffect(() => {
-    const timer = setInterval(() => {
+    const updateProgress = () => {
       setProgress(calculateYearProgress());
-    }, 1000); // Update every second
+    };
 
-    // Cleanup interval on component unmount
-    return () => clearInterval(timer);
-  }, []); // Empty dependency array ensures this runs only once on mount
+    updateProgress();
+    updateIntervalRef.current = setInterval(updateProgress, 60000);
 
+    return () => {
+      if (updateIntervalRef.current) {
+        clearInterval(updateIntervalRef.current);
+      }
+    };
+  }, []);
 
-  // --- Visuals ---
+  // Memoized calculations
+  const { daysPassed, daysLeft, matrixDays } = useMemo(() => {
+    const daysPassed = progress.dayOfYear;
+    const daysLeft = progress.totalDaysInYear - daysPassed;
+    const matrixDays = Array.from(
+      { length: progress.totalDaysInYear },
+      (_, i) => (i < daysPassed ? "filled" : "empty")
+    );
 
-  // Calculate daysPassed and daysLeft
-  const daysPassed = progress.dayOfYear;
-  const daysLeft = progress.totalDaysInYear - daysPassed;
+    return { daysPassed, daysLeft, matrixDays };
+  }, [progress.dayOfYear, progress.totalDaysInYear]);
 
-  // Create the block representation of the year (e.g., 100 blocks)
-  const totalBlocks = 100;
-  const filledBlocks = Math.floor(progress.percentage);
-  const emptyBlocks = totalBlocks - filledBlocks;
-  const progressBlocks = '▓'.repeat(filledBlocks) + '░'.repeat(emptyBlocks);
+  // Handlers
+  const addTodo = useCallback(() => {
+    const trimmed = newTodo.trim();
+    if (trimmed) {
+      setTodos((prev) => [...prev, trimmed]);
+      setNewTodo("");
+    }
+  }, [newTodo, setTodos]);
 
-  // Create matrixDays: one element per day in the year, 'filled' if day index < daysPassed, else 'empty'
-  const matrixDays = Array.from({ length: progress.totalDaysInYear }, (_, i) =>
-    i < daysPassed ? 'filled' : 'empty'
+  const deleteTodo = useCallback(
+    (index) => {
+      setTodos((prev) => prev.filter((_, i) => i !== index));
+    },
+    [setTodos]
   );
 
-  // --- Styles ---
+  const handleKeyDown = useCallback(
+    (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        addTodo();
+      }
+    },
+    [addTodo]
+  );
 
-  const styles = {
-    container: {
-      position: 'relative',
-      color: '#000',
-      display: 'flex',
-      flexDirection: 'column',
-      alignItems: 'center',
-      justifyContent: 'center',
-      width: '100vw',
-      height: '100vh',
-      margin: 0,
-      padding: 0,
-      boxSizing: 'border-box',
-      fontFamily: "'Fira Code', 'Source Code Pro', 'Courier New', monospace",
-      fontWeight: '100',
-      textAlign: 'center',
-    },
-    loadingTextContainer: {
-      display: 'flex',
-      justifyContent: 'center',
-      alignItems: 'center',
-      gap: '1rem',
-      width: '80%',
-      maxWidth: '600px',
-      fontSize: '1rem',
-      fontFamily: `monospace`,
-      margin: '0.5rem 0 1.5rem 0',
-      letterSpacing: '0',
-      color: '#ffffffff',
-      textTransform: 'uppercase',
-    },
-    percentageText: {
-      fontSize: '1.5rem',
-      fontWeight: 'bold',
-      color: '#fff',
-      backgroundColor: 'rgba(0, 0, 0, 0.4)',
-      padding: '0.3rem 0.6rem',
-      borderRadius: '8px',
-    },
-    blocks: {
-      fontSize: '0.75rem',
-      letterSpacing: '0',
-      wordBreak: 'break-all',
-      width: '80%',
-      maxWidth: '600px',
-      lineHeight: '1.2',
-      color: '#eeeeee1e',
-    },
-    dayMatrix: {
-      display: 'grid',
-      gridTemplateColumns: 'repeat(14, 14px)',
-      gap: '6px',
-      marginTop: '20px',
-    },
-    dayDot: {
-      width: '12px',
-      height: '12px',
-      borderRadius: '4px',
-      transition: 'box-shadow 0.2s ease, transform 0.2s ease',
-    },
-    dateTime: {
-      position: 'absolute',
-      bottom: '10px',
-      right: '20px',
-      fontSize: '0.9rem',
-      color: '#fff',
-      fontFamily: 'monospace',
-    },
-    card: {
-      backgroundColor: 'rgba(0, 0, 0, 0.6)',
-      border: '1px solid rgba(255, 255, 255, 0.2)',
-      boxShadow: '0 4px 20px rgba(0, 0, 0, 0.6)',
-      backdropFilter: 'blur(10px)',
-      WebkitBackdropFilter: 'blur(10px)',
-      borderRadius: '15px',
-      padding: '18px',
-      display: 'flex',
-      flexDirection: 'column',
-      alignItems: 'center',
-      gap: '1rem',
-      minWidth: '340px',
-      position: 'relative',
-    },
-    bubble: {
-      backgroundColor: 'rgba(0, 0, 0, 0.6)',
-      color: '#fff',
-      padding: '0.4rem 0.8rem',
-      borderRadius: '12px',
-      fontSize: '0.9rem',
-      fontWeight: 'bold',
-    },
-    leftBubble: {
-      position: 'static',
-      margin: '0 0.5rem',
-      backgroundColor: 'rgba(0, 0, 0, 0.6)',
-      color: '#fff',
-      padding: '0.4rem 0.8rem',
-      borderRadius: '12px',
-      fontSize: '1rem',
-      fontWeight: 'bold',
-      whiteSpace: 'nowrap',
-    },
-    rightBubble: {
-      position: 'static',
-      margin: '0 0.5rem',
-      backgroundColor: 'rgba(0, 0, 0, 0.6)',
-      color: '#fff',
-      padding: '0.4rem 0.8rem',
-      borderRadius: '12px',
-      fontSize: '1rem',
-      fontWeight: 'bold',
-      whiteSpace: 'nowrap',
-    },
-  };
+  // Current time
+  const [currentTime, setCurrentTime] = useState(
+    new Date().toLocaleTimeString()
+  );
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentTime(new Date().toLocaleTimeString());
+    }, 1000);
 
+    return () => clearInterval(timer);
+  }, []);
+
+  // Theme colors
+  const theme = useMemo(
+    () => ({
+      bg: isDarkMode ? "#111" : "#fff",
+      cardBg: isDarkMode ? "#1a1a1a" : "#fff",
+      noteBg: isDarkMode ? "#222" : "#fafafa",
+      noteItemBg: isDarkMode ? "#333" : "#f8f8f8",
+      text: isDarkMode ? "#fff" : "#333",
+      textSecondary: isDarkMode ? "#aaa" : "#666",
+      textTertiary: isDarkMode ? "#888" : "#888",
+      textMuted: isDarkMode ? "#666" : "#ccc",
+      border: isDarkMode ? "#333" : "#ddd",
+      borderLight: isDarkMode ? "#444" : "#eee",
+      progressBg: isDarkMode ? "#333" : "#f0f0f0",
+      progressFill: isDarkMode ? "#fff" : "#333",
+      dotFilled: isDarkMode ? "#fff" : "#333",
+      dotEmpty: isDarkMode ? "#444" : "#ddd",
+      inputBg: isDarkMode ? "#222" : "#fff",
+      inputBorder: isDarkMode ? "#444" : "#ddd",
+    }),
+    [isDarkMode]
+  );
 
   return (
-    <div style={styles.container}>
+    <div
+      style={{
+        position: "relative",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        width: "100vw",
+        height: "100vh",
+        margin: 0,
+        padding: 0,
+        fontFamily: "monospace",
+        fontSize: "12px",
+        backgroundColor: theme.bg,
+        color: theme.text,
+        transition: "all 0.3s ease",
+      }}
+    >
+      {/* Dark mode toggle */}
+      <button
+        onClick={() => setIsDarkMode(!isDarkMode)}
+        style={{
+          position: "absolute",
+          top: "40px",
+          right: "40px",
+          background: "transparent",
+          border: `1px solid ${theme.border}`,
+          padding: "8px 12px",
+          fontSize: "10px",
+          color: theme.text,
+          cursor: "pointer",
+          fontFamily: "monospace",
+          transition: "all 0.3s ease",
+        }}
+        onMouseEnter={(e) => {
+          e.target.style.backgroundColor = theme.noteItemBg;
+        }}
+        onMouseLeave={(e) => {
+          e.target.style.backgroundColor = "transparent";
+        }}
+      >
+        {isDarkMode ? "☀" : "🌙"}
+      </button>
+
+      {/* Notes section */}
       <div
         style={{
-          position: 'absolute',
-          top: 0,
-          left: 0,
-          width: '100%',
-          height: '100%',
-          backgroundImage: `url(${randomBgImage})`,
-          backgroundSize: 'cover',
-          backgroundRepeat: 'no-repeat',
-          backgroundPosition: 'center',
-          zIndex: -1,
-          pointerEvents: 'none',
+          position: "absolute",
+          top: "40px",
+          left: "40px",
+          width: "200px",
+          padding: "12px",
+          backgroundColor: theme.noteBg,
+          border: `1px solid ${theme.borderLight}`,
+          borderRadius: "0px",
+          transition: "all 0.3s ease",
         }}
-      />
-      <Draggable bounds="parent" nodeRef={cardRef} handle=".card-handle">
-        <div ref={cardRef} style={styles.card}>
-          <div className="card-handle" style={{ display: 'flex', justifyContent: 'space-between', width: '100%', cursor: 'move' }}>
-            <span style={styles.leftBubble}>{progress.year}</span>
-            <span style={styles.rightBubble}>{progress.percentage.toFixed(4)}%</span>
-          </div>
-          <LinearProgress
-            variant="determinate"
-            value={progress.percentage}
-            sx={{
-              width: '95%',
-              maxWidth: '600px',
-              height: '30px',
-              borderRadius: '15px',
-              backgroundColor: '#00000033',
-              '& .MuiLinearProgress-bar': {
-                backgroundColor: '#fff',
-              },
-              '&:hover': {
-                boxShadow: '0 0 10px #fff',
-                transition: 'box-shadow 0.3s ease',
-              },
+      >
+        <input
+          type="text"
+          value={newTodo}
+          onChange={(e) => setNewTodo(e.target.value)}
+          onKeyDown={handleKeyDown}
+          placeholder="note..."
+          style={{
+            padding: "6px",
+            borderRadius: "0px",
+            border: `1px solid ${theme.inputBorder}`,
+            width: "100%",
+            boxSizing: "border-box",
+            fontFamily: "monospace",
+            fontSize: "11px",
+            backgroundColor: theme.inputBg,
+            color: theme.text,
+            outline: "none",
+            transition: "all 0.3s ease",
+          }}
+          maxLength={60}
+        />
+        <ul
+          style={{
+            marginTop: "8px",
+            padding: 0,
+            listStyle: "none",
+            maxHeight: "200px",
+            overflowY: "auto",
+          }}
+        >
+          {todos.map((todo, idx) => (
+            <li
+              key={`${todo}-${idx}`}
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                color: theme.text,
+                fontFamily: "monospace",
+                fontSize: "12px",
+                margin: "4px 0",
+                padding: "4px 8px",
+                backgroundColor: theme.noteItemBg,
+                borderRadius: "0px",
+                border: `1px solid ${theme.borderLight}`,
+                transition: "all 0.3s ease",
+              }}
+            >
+              <span>{todo}</span>
+              <button
+                onClick={() => deleteTodo(idx)}
+                style={{
+                  marginLeft: "8px",
+                  background: "transparent",
+                  border: "none",
+                  color: theme.textTertiary,
+                  cursor: "pointer",
+                  fontSize: "12px",
+                  padding: "2px",
+                }}
+                aria-label="Delete todo"
+              >
+                ×
+              </button>
+            </li>
+          ))}
+        </ul>
+      </div>
+
+      {/* Main card */}
+      <div
+        ref={cardRef}
+        onMouseDown={handleMouseDown}
+        style={{
+          position: "absolute",
+          left: `calc(50% - 160px + ${position.x}px)`,
+          top: `calc(50% - 120px + ${position.y}px)`,
+          background: theme.cardBg,
+          border: `1px solid ${theme.border}`,
+          borderRadius: "0px",
+          padding: "24px",
+          width: "320px",
+          cursor: isDragging ? "grabbing" : "grab",
+          userSelect: "none",
+          transition: isDragging ? "none" : "all 0.3s ease",
+        }}
+      >
+        {/* Header */}
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            marginBottom: "24px",
+            fontSize: "14px",
+            color: theme.textSecondary,
+          }}
+        >
+          <span>{progress.year}</span>
+          <span>{progress.percentage.toFixed(2)}%</span>
+        </div>
+
+        {/* Progress bar */}
+        <div
+          style={{
+            width: "100%",
+            height: "4px",
+            backgroundColor: theme.progressBg,
+            overflow: "hidden",
+          }}
+        >
+          <div
+            style={{
+              width: `${progress.percentage}%`,
+              height: "100%",
+              backgroundColor: theme.progressFill,
+              transition: "width 0.3s ease",
             }}
           />
-          <div style={styles.dayMatrix}>
-            {matrixDays.map((status, idx) => (
-              <div
-                key={idx}
-                style={{
-                  ...styles.dayDot,
-                  backgroundColor: status === 'filled'
-                    ? 'rgba(255,255,255,0.85)'
-                    : 'rgba(255,255,255,0.3)',
-                  boxShadow: hoveredIndex === idx
-                    ? `0 0 6px ${theme.palette.primary.light}`
-                    : 'none',
-                  transform: hoveredIndex === idx ? 'scale(1.2)' : 'scale(1)',
-                }}
-                onMouseEnter={() => setHoveredIndex(idx)}
-                onMouseLeave={() => setHoveredIndex(null)}
-              ></div>
-            ))}
-          </div>
-          <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem' }}>
-            <span style={styles.bubble}>{daysPassed} days passed</span>
-            <span style={styles.bubble}>{daysLeft} days remaining</span>
-          </div>
         </div>
-      </Draggable>
-      <div style={styles.dateTime}>
-        {new Date().toLocaleString()}
+
+        {/* Day matrix */}
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(37, 4.8px)",
+            gap: "4px",
+            justifyContent: "center",
+            padding: "16px 0",
+            maxWidth: "100%",
+            overflow: "hidden",
+          }}
+        >
+          {matrixDays.map((status, idx) => (
+            <div
+              key={idx}
+              style={{
+                width: "4px",
+                height: "4px",
+                backgroundColor:
+                  status === "filled" ? theme.dotFilled : theme.dotEmpty,
+                borderRadius: "0px",
+              }}
+            />
+          ))}
+        </div>
+
+        {/* Stats */}
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            fontSize: "12px",
+            color: theme.textTertiary,
+            paddingTop: "16px",
+          }}
+        >
+          <span>{daysPassed} passed</span>
+          <span>{daysLeft} left</span>
+        </div>
       </div>
-      <footer style={{
-        position: 'absolute',
-        bottom: '10px',
-        left: '20px',
-        fontSize: '0.9rem',
-        color: '#fff',
-        fontFamily: 'monospace'
-      }}>
-        Made by <a href="https://github.com/megalopsychos" target="_blank" rel="noopener noreferrer" style={{ color: '#fff', textDecoration: 'underline' }}>Anant</a>
-      </footer>
+
+      {/* Time */}
+      <div
+        style={{
+          position: "absolute",
+          bottom: "40px",
+          right: "40px",
+          fontSize: "11px",
+          color: theme.textMuted,
+        }}
+      >
+        {currentTime}
+      </div>
+
+      {/* Credits */}
+      <div
+        style={{
+          position: "absolute",
+          bottom: "40px",
+          left: "40px",
+          fontSize: "10px",
+          color: theme.textMuted,
+        }}
+      >
+        <a
+          href="https://github.com/megalopsychos"
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{
+            color: theme.textMuted,
+            textDecoration: "none",
+          }}
+        >
+          anant
+        </a>
+      </div>
     </div>
   );
 }
