@@ -33,12 +33,18 @@ const useLocalStorage = (key, initialValue) => {
   });
 
   const setStoredValue = useCallback(
-    (newValue) => {
+    (valueOrUpdater) => {
       try {
-        setValue(newValue);
-        if (typeof window !== "undefined" && window.localStorage) {
-          window.localStorage.setItem(key, JSON.stringify(newValue));
-        }
+        setValue((prev) => {
+          const valueToStore =
+            typeof valueOrUpdater === "function"
+              ? valueOrUpdater(prev)
+              : valueOrUpdater;
+          if (typeof window !== "undefined" && window.localStorage) {
+            window.localStorage.setItem(key, JSON.stringify(valueToStore));
+          }
+          return valueToStore;
+        });
       } catch (error) {
         console.log("LocalStorage not available");
       }
@@ -110,6 +116,8 @@ function YearProgress() {
   const [todos, setTodos] = useLocalStorage("todos", []);
   const [newTodo, setNewTodo] = useState("");
   const [isDarkMode, setIsDarkMode] = useLocalStorage("darkMode", false);
+  // track hover with React state instead of mutating DOM
+  const [isDarkToggleHovered, setIsDarkToggleHovered] = useState(false);
 
   // Draggable functionality
   const { position, isDragging, handleMouseDown } = useDraggable();
@@ -229,7 +237,7 @@ function YearProgress() {
           position: "absolute",
           top: "40px",
           right: "40px",
-          background: "transparent",
+          background: isDarkToggleHovered ? theme.noteItemBg : "transparent",
           border: `1px solid ${theme.border}`,
           padding: "8px 12px",
           fontSize: "10px",
@@ -238,14 +246,10 @@ function YearProgress() {
           fontFamily: "monospace",
           transition: "all 0.3s ease",
         }}
-        onMouseEnter={(e) => {
-          e.target.style.backgroundColor = theme.noteItemBg;
-        }}
-        onMouseLeave={(e) => {
-          e.target.style.backgroundColor = "transparent";
-        }}
+        onMouseEnter={() => setIsDarkToggleHovered(true)}
+        onMouseLeave={() => setIsDarkToggleHovered(false)}
       >
-        {isDarkMode ? "☀" : "🌙"}
+        {isDarkMode ? "☀" : "☾"}
       </button>
 
       {/* Notes section */}
@@ -456,7 +460,7 @@ function YearProgress() {
             textDecoration: "none",
           }}
         >
-          anant
+          made by anant
         </a>
       </div>
     </div>
